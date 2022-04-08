@@ -75,15 +75,16 @@ int mavalloc_init( size_t size, enum ALGORITHM algorithm )
 void mavalloc_destroy( )
 {
   free( arena );
-  // iterate over the linked list and free the nodes
-  struct Node* node = alloc_list;
-  struct Node* prev = node;
-  while(node){
-    node = node->next;
-    free(prev);
-    prev = node;
-  }
   
+  // iterate over the linked list and free the nodes
+  struct Node * curr = alloc_list;
+  struct Node * prev = curr;
+  while(curr)
+  {
+    curr = curr->next;
+    free(prev);
+    prev = curr;
+  }
 
   return;
 }
@@ -109,7 +110,7 @@ void * mavalloc_alloc( size_t size )
 
   size_t aligned_size = ALIGN4( size );
 
-  if( allocation_algorithm == FIRST_FIT )
+  if( allocation_algorithm == FIRST_FIT)
   {
     while( node )
     {
@@ -171,10 +172,12 @@ void * mavalloc_alloc( size_t size )
     node = alloc_list;
     while( node )
     {
+      /*
       if(node == begin_node){
         printf("Nodes are all full");
         return (void *) node -> arena;
       }
+      */
       if( node -> size >= aligned_size  && node -> type == FREE )
       {
         int leftover_size = 0;
@@ -203,113 +206,92 @@ void * mavalloc_alloc( size_t size )
   }
   
   // Implement Worst Fit
-  if( allocation_algorithm == WORST_FIT)
-  {
-    struct Node* max_node;
-    while(node->type == USED){
+  if( allocation_algorithm == WORST_FIT ){
+    struct Node * max_node = node;
+    while(node){
       node = node->next;
-    }
-    max_node = node;
-    while(node->next != NULL){
-      node = node->next;
-      if(node->type == FREE){
-        if(max_node->size < node->size){
+      if(node != NULL){
+        if(node->size > max_node->size && node->type == FREE){
           max_node = node;
         }
       }
     }
     node = max_node;
-    
-    if( node -> size >= aligned_size  && node -> type == FREE )
+    //Check if node is free because it defaults at the first node
+    if(node -> size >= aligned_size && node->type == FREE){
+      int leftover_size = 0;
+
+      node -> type  = USED;
+      leftover_size = node -> size - aligned_size;
+      node -> size =  aligned_size;
+
+      if( leftover_size > 0 )
       {
-        int leftover_size = 0;
-  
-        node -> type  = USED;
-        leftover_size = node -> size - aligned_size;
-        node -> size =  aligned_size;
-  
-        if( leftover_size > 0 )
-        {
-          struct Node * previous_next = node -> next;
-          struct Node * leftover_node = ( struct Node * ) malloc ( sizeof( struct Node ));
-  
-          leftover_node -> arena = node -> arena + size;
-          leftover_node -> type  = FREE;
-          leftover_node -> size  = leftover_size;
-          leftover_node -> next  = previous_next;
-  
-          node -> next = leftover_node;
-        }
-        previous_node = node;
-        return ( void * ) node -> arena;
+        struct Node * previous_next = node -> next;
+        struct Node * leftover_node = ( struct Node * ) malloc ( sizeof( struct Node ));
+
+        leftover_node -> arena = node -> arena + size;
+        leftover_node -> type  = FREE;
+        leftover_node -> size  = leftover_size;
+        leftover_node -> next  = previous_next;
+
+        node -> next = leftover_node;
       }
-      node = node -> next;
-  }
-  
-  // Implement Best Fit
-  if( allocation_algorithm == BEST_FIT)
-  {
-    struct Node* min_node;
-    while(node->type == USED){
-      node = node->next;
+      previous_node = node;
+      return ( void * ) node -> arena;
     }
-    min_node = node;
-    while(node->next != NULL){
-      node = node->next;
-      if(node->type == FREE){
-        if(min_node->size > node->size){
+  }
+  // Implement Best Fit
+  if( allocation_algorithm == BEST_FIT ){
+    struct Node * min_node = node;
+    while(node){
+      node = node -> next; 
+      if(node != NULL){
+        if(min_node-> size > node->size && node->type == FREE){
           min_node = node;
         }
       }
     }
     node = min_node;
-    if( node -> size >= aligned_size  && node -> type == FREE )
-      {
+    if(node -> size >= aligned_size && node->type == FREE){
         int leftover_size = 0;
-  
+
         node -> type  = USED;
         leftover_size = node -> size - aligned_size;
         node -> size =  aligned_size;
-  
+
         if( leftover_size > 0 )
         {
           struct Node * previous_next = node -> next;
           struct Node * leftover_node = ( struct Node * ) malloc ( sizeof( struct Node ));
-  
+
           leftover_node -> arena = node -> arena + size;
           leftover_node -> type  = FREE;
           leftover_node -> size  = leftover_size;
           leftover_node -> next  = previous_next;
-  
+
           node -> next = leftover_node;
         }
         previous_node = node;
         return ( void * ) node -> arena;
       }
-      node = node -> next;
   }
-
   return NULL;
 }
 
 void mavalloc_free( void * ptr )
 {
-  //printf("Trevor Bakker singlehandedly broke my wrist");
-  struct Node * node = alloc_list;
+  struct Node *node = alloc_list;
   while(node){
-    if(node-> arena == ptr)
-    {
-      if( node -> type == FREE)
-      {
-        printf("Warning: Double free detected");
+    if(node->arena == ptr){
+      if( node-> type == FREE){
+        printf("Warning: Double free");
       }
       node->type = FREE;
-      
       break;
     }
-    node = node -> next;
+    node = node->next;
   }
-
   return;
 }
 
